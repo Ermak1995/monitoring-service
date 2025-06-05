@@ -1,8 +1,10 @@
+from datetime import datetime
+
 from paramiko.client import SSHClient, AutoAddPolicy
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from models import Server
+from models import Server, ServerMetric
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy import select, inspect, insert
@@ -52,13 +54,15 @@ def add_servers(data: ServerCreate, db: Session = Depends(get_db)):
 
 @app.get('/servers/{server_id}/check-connection')
 def check_connection(server_id: int, db: Session = Depends(get_db)):
+    '''
+    Проверка возможности подключения к серверу
+    '''
     result = db.execute(select(Server).where(Server.id == server_id))
     db_server = result.scalar_one_or_none()
 
     if db_server is None:
         return HTTPException(status_code=404, detail="Сервер не найден")
 
-    # Подключение к серверу по SSH
     client = SSHClient()
     client.set_missing_host_key_policy(AutoAddPolicy())
 
@@ -85,3 +89,43 @@ def check_connection(server_id: int, db: Session = Depends(get_db)):
         is_connected=is_connected,
         status_message=status_message,
     )
+
+
+@app.get('/servers/{server_id}/metrics')
+def get_metrics(server_id: int, db: Session = Depends(get_db)):
+    client = SSHClient()
+    client.set_missing_host_key_policy(AutoAddPolicy)
+    db_server = db.execute(select(Server).where(Server.id == server_id)).scalar_one_or_none()
+    if db_server is None:
+        return HTTPException(status_code=404, detail="Сервер не найден")
+
+    metrics = {}
+    commands = {
+        "cpu": "top -bn1",
+        "memory": "free -m",
+        "disk": "df -h",
+    }
+
+    try:
+        client.connect(
+            hostname=db_server.hostname,
+            port=db_server.port,
+            username=db_server.username,
+            password=db_server.password
+        )
+        for key, cmd in commands.items():
+            stdin, stdout, stderr = client.exec_command(cmd)
+            output = stdout.read().decode('utf-8')
+            metrics[key] = output if output else None
+
+        new_metric = ServerMetric(
+            server_id=db_server.id,
+            timestamp=datetime.utcnow(),
+            cpu=metrics.get('cpu'),
+            memory=metrics.get('memory'),
+            disk=metrics.get('disk'),
+        )
+        db.add(new_metric)
+        db.commit()
+    except Exception as e:
+        print(e)

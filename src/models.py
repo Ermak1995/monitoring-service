@@ -1,4 +1,6 @@
-from sqlalchemy import String, Boolean
+from datetime import datetime
+
+from sqlalchemy import String, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -17,3 +19,14 @@ class Server(Base):
 
     def __repr__(self):
         return f'Server: {self.name} - {self.hostname}'
+
+
+class ServerMetric(Base):
+    __tablename__ = 'metrics'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    server_id: Mapped[int] = mapped_column(ForeignKey('servers.id'))
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    cpu: Mapped[str] = mapped_column(Text)
+    memory: Mapped[str] = mapped_column(Text)
+    disk: Mapped[str] = mapped_column(Text)
