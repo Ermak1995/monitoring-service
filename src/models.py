@@ -37,5 +37,4 @@ class ServerLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     server_id: Mapped[int] = mapped_column(ForeignKey('servers.id'))
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    type: Mapped[str] = mapped_column(String(50))
     info: Mapped[str] = mapped_column(Text)

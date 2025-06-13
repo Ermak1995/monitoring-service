@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+
 class ServerCreate(BaseModel):
     name: str
     hostname: str
@@ -9,6 +10,7 @@ class ServerCreate(BaseModel):
     username: str
     password: str
     is_active: bool = True
+
 
 class ServerStatus(BaseModel):
     id: int
@@ -25,3 +27,9 @@ class Metric(BaseModel):
     cpu: str
     memory: str
     disk: str
+
+
+class Log(BaseModel):
+    server_id: int
+    timestamp: datetime
+    info: str

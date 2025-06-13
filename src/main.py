@@ -4,7 +4,7 @@ from paramiko.client import SSHClient, AutoAddPolicy
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from models import Server, ServerMetric
+from models import Server, ServerMetric, ServerLog
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy import select, inspect, insert
@@ -81,8 +81,8 @@ def check_connection(server_id: int, db: Session = Depends(get_db)):
     )
 
 
-@app.get('/servers/{server_id}/metrics')
-def get_metrics(server_id: int, db: Session = Depends(get_db)):
+@app.get('/servers/{server_id}/status')
+def get_status(server_id: int, db: Session = Depends(get_db)):
     client = SSHClient()
     client.set_missing_host_key_policy(AutoAddPolicy())
     db_server = db.execute(select(Server).where(Server.id == server_id)).scalar_one_or_none()
@@ -90,6 +90,8 @@ def get_metrics(server_id: int, db: Session = Depends(get_db)):
         return HTTPException(status_code=404, detail="Сервер не найден")
 
     metrics = {}
+    logs = []
+
     commands = {
         "cpu": "grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$4+$5)} END {print usage}'",
         "memory": "free -m | grep Mem | awk '{print $3/$2 * 100.0}'",
@@ -103,10 +105,17 @@ def get_metrics(server_id: int, db: Session = Depends(get_db)):
             username=db_server.username,
             password=db_server.password
         )
+
+        # Metrics
         for key, cmd in commands.items():
             stdin, stdout, stderr = client.exec_command(cmd)
             output = stdout.read().decode('utf-8')
             metrics[key] = float(output) if output else None
+
+        # Logs
+        stdin, stdout, stderr = client.exec_command("journalctl -n 20 --no-pager")
+        output = stdout.read().decode('utf-8')
+        logs.append(output)
 
         new_metric = ServerMetric(
             server_id=db_server.id,
@@ -115,7 +124,14 @@ def get_metrics(server_id: int, db: Session = Depends(get_db)):
             memory=metrics.get('memory'),
             disk=metrics.get('disk'),
         )
+        new_log = ServerLog(
+            server_id=db_server.id,
+            timestamp=datetime.utcnow(),
+            info=logs,
+
+        )
         db.add(new_metric)
+        db.add(new_log)
         db.commit()
         return {
             "server_id": db_server.id,
@@ -123,6 +139,12 @@ def get_metrics(server_id: int, db: Session = Depends(get_db)):
             "cpu": metrics.get('cpu'),
             "memory": metrics.get('memory'),
             "disk": metrics.get('disk'),
+            "logs": logs
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Не удалось получить метрики: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Не удалось получить информацию: {str(e)}")
+
+
+
+
+
