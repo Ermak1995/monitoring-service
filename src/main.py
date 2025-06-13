@@ -10,17 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy import select, inspect, insert
 
 from database import Base, engine, SessionLocal
-from schemas import ServerStatus
-
-
-class ServerCreate(BaseModel):
-    name: str
-    hostname: str
-    port: int = 22
-    username: str
-    password: str
-    is_active: bool = True
-
+from schemas import ServerStatus, ServerCreate
 
 app = FastAPI()
 
@@ -94,16 +84,16 @@ def check_connection(server_id: int, db: Session = Depends(get_db)):
 @app.get('/servers/{server_id}/metrics')
 def get_metrics(server_id: int, db: Session = Depends(get_db)):
     client = SSHClient()
-    client.set_missing_host_key_policy(AutoAddPolicy)
+    client.set_missing_host_key_policy(AutoAddPolicy())
     db_server = db.execute(select(Server).where(Server.id == server_id)).scalar_one_or_none()
     if db_server is None:
         return HTTPException(status_code=404, detail="Сервер не найден")
 
     metrics = {}
     commands = {
-        "cpu": "top -bn1",
-        "memory": "free -m",
-        "disk": "df -h",
+        "cpu": "grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$4+$5)} END {print usage}'",
+        "memory": "free -m | grep Mem | awk '{print $3/$2 * 100.0}'",
+        "disk": "df -h / | awk 'NR==2 {print $5}' | sed 's/%//'",
     }
 
     try:
@@ -116,7 +106,7 @@ def get_metrics(server_id: int, db: Session = Depends(get_db)):
         for key, cmd in commands.items():
             stdin, stdout, stderr = client.exec_command(cmd)
             output = stdout.read().decode('utf-8')
-            metrics[key] = output if output else None
+            metrics[key] = float(output) if output else None
 
         new_metric = ServerMetric(
             server_id=db_server.id,
@@ -127,5 +117,12 @@ def get_metrics(server_id: int, db: Session = Depends(get_db)):
         )
         db.add(new_metric)
         db.commit()
+        return {
+            "server_id": db_server.id,
+            "timestamp": new_metric.timestamp,
+            "cpu": metrics.get('cpu'),
+            "memory": metrics.get('memory'),
+            "disk": metrics.get('disk'),
+        }
     except Exception as e:
-        print(e)
+        raise HTTPException(status_code=500, detail=f"Не удалось получить метрики: {str(e)}")

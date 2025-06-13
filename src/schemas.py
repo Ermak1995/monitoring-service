@@ -2,6 +2,13 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+class ServerCreate(BaseModel):
+    name: str
+    hostname: str
+    port: int = 22
+    username: str
+    password: str
+    is_active: bool = True
 
 class ServerStatus(BaseModel):
     id: int

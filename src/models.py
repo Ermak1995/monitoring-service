@@ -30,3 +30,12 @@ class ServerMetric(Base):
     cpu: Mapped[str] = mapped_column(Text)
     memory: Mapped[str] = mapped_column(Text)
     disk: Mapped[str] = mapped_column(Text)
+
+class ServerLog(Base):
+    __tablename__ = 'logs'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    server_id: Mapped[int] = mapped_column(ForeignKey('servers.id'))
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    type: Mapped[str] = mapped_column(String(50))
+    info: Mapped[str] = mapped_column(Text)
