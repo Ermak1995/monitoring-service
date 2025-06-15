@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import String, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.ddl import DDLIf
 
 from database import Base
 
@@ -38,3 +39,13 @@ class ServerLog(Base):
     server_id: Mapped[int] = mapped_column(ForeignKey('servers.id'))
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     info: Mapped[str] = mapped_column(Text)
+
+
+class User(Base):
+    __tablename__ = 'users'
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    password: Mapped[str] = mapped_column(String(255))
+
+    def __repr__(self):
+        return f"User: {self.email}"

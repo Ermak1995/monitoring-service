@@ -33,3 +33,7 @@ class Log(BaseModel):
     server_id: int
     timestamp: datetime
     info: str
+
+class UserCreate(BaseModel):
+    email: str
+    password: str

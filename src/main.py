@@ -4,13 +4,14 @@ from paramiko.client import SSHClient, AutoAddPolicy
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from models import Server, ServerMetric, ServerLog
+from models import Server, ServerMetric, ServerLog, User
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy import select, inspect, insert
 
 from database import Base, engine, SessionLocal
-from schemas import ServerStatus, ServerCreate
+from schemas import ServerStatus, ServerCreate, UserCreate
+from auth import get_password_hash
 
 app = FastAPI()
 
@@ -145,6 +146,18 @@ def get_status(server_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Не удалось получить информацию: {str(e)}")
 
 
+@app.post('/register')
+def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.execute(select(User).where(User.email == user_data.email)).scalar_one_or_none()
+    if existing_user:
+        return HTTPException(status_code=401, detail="Пользователь с таким email уже существует")
 
-
-
+    hashed_password = get_password_hash(user_data.password)
+    try:
+        new_user = User(email=user_data.email, password=hashed_password)
+        db.add(new_user)
+        db.commit()
+        return {"message": "Пользователь зарегистрирован", "user_id": new_user.id}
+    except:
+        db.rollback()
+        return {"message": "Ошибка! Пользователь не зарегистрирован"}
