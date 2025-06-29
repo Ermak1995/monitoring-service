@@ -35,5 +35,6 @@ class Log(BaseModel):
     info: str
 
 class UserCreate(BaseModel):
+    username: str
     email: str
     password: str

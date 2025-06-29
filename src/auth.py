@@ -34,9 +34,9 @@ def verify_password(plain_password, hashed_password):
 
 
 # Аутентификация пользователя
-def authenticate_user(db: Session, email: str, password: str):
-    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
-    if user is None or not verify_password(password, User.password):
+def authenticate_user(db: Session, username: str, password: str):
+    user = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
+    if user is None or not verify_password(password, user.password):
         return HTTPException(status_code=400, detail='Invalid user')
     return user
 

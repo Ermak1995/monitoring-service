@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from fastapi.security import OAuth2PasswordRequestForm
 from paramiko.client import SSHClient, AutoAddPolicy
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -11,7 +12,7 @@ from sqlalchemy import select, inspect, insert
 
 from database import Base, engine, SessionLocal
 from schemas import ServerStatus, ServerCreate, UserCreate
-from auth import get_password_hash
+from auth import get_password_hash, authenticate_user, create_access_token
 
 app = FastAPI()
 
@@ -154,10 +155,23 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
     hashed_password = get_password_hash(user_data.password)
     try:
-        new_user = User(email=user_data.email, password=hashed_password)
+        new_user = User(
+            username=user_data.username,
+            email=user_data.email,
+            password=hashed_password
+        )
         db.add(new_user)
         db.commit()
         return {"message": "Пользователь зарегистрирован", "user_id": new_user.id}
     except:
         db.rollback()
         return {"message": "Ошибка! Пользователь не зарегистрирован"}
+
+
+@app.post('/login')
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail='Неверные учетные данные')
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "Bearer"}
