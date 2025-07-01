@@ -10,6 +10,7 @@ class ServerCreate(BaseModel):
     username: str
     password: str
     is_active: bool = True
+    user_id: int
 
 
 class ServerStatus(BaseModel):
@@ -34,7 +35,9 @@ class Log(BaseModel):
     timestamp: datetime
     info: str
 
-class UserCreate(BaseModel):
+class UserBase(BaseModel):
     username: str
     email: str
+
+class UserCreate(UserBase):
     password: str

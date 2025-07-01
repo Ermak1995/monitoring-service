@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from models import User
+from database import SessionLocal, get_db
 
 load_dotenv()
 
@@ -50,7 +51,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 
 # Получение текущего пользователя
-def get_current_user(db: Session, token: str = Depends(oauth2_scheme)):
+def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")

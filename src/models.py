@@ -1,8 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import String, Boolean, ForeignKey, DateTime, Text
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.sql.ddl import DDLIf
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
 
@@ -17,6 +16,11 @@ class Server(Base):
     username: Mapped[str] = mapped_column(String(50))
     password: Mapped[str] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
+
+    metrics = relationship('ServerMetric', back_populates='server')
+    logs = relationship('ServerLog', back_populates='server')
+    user = relationship('User', back_populates='servers')
 
     def __repr__(self):
         return f'Server: {self.name} - {self.hostname}'
@@ -32,6 +36,9 @@ class ServerMetric(Base):
     memory: Mapped[str] = mapped_column(Text)
     disk: Mapped[str] = mapped_column(Text)
 
+    server = relationship('Server', back_populates='metrics')
+
+
 class ServerLog(Base):
     __tablename__ = 'logs'
 
@@ -40,6 +47,8 @@ class ServerLog(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     info: Mapped[str] = mapped_column(Text)
 
+    server = relationship('Server', back_populates='logs')
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -47,6 +56,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(255), unique=True)
     email: Mapped[str] = mapped_column(String(255), unique=True)
     password: Mapped[str] = mapped_column(String(255))
-
+    
+    servers = relationship('Server', back_populates='user')
     def __repr__(self):
-        return f"User: {self.username}"
+        return f'User: {self.username}'
