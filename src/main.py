@@ -11,7 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy import select, inspect, insert
 
 from database import Base, engine, SessionLocal, get_db
-from schemas import ServerStatus, ServerCreate, UserCreate
+from schemas import ServerStatus, ServerCreate, UserCreate, ServerUpdate
 from auth import get_password_hash, authenticate_user, create_access_token
 from auth import get_current_user
 
@@ -25,7 +25,7 @@ def servers(user: User = Depends(get_current_user), db: Session = Depends(get_db
     try:
         return user.servers
     except:
-        return HTTPException(detail='Ошибка в получении данных о серверах')
+        raise HTTPException(detail='Ошибка в получении данных о серверах')
 
 
 @app.post('/add_server')
@@ -36,7 +36,7 @@ def add_server(data: ServerCreate, db: Session = Depends(get_db)):
         db.commit()
         return {"message": "Added Successfully"}
     except:
-        return HTTPException(detail='Не получилось добавить сервер')
+        raise HTTPException(detail='Не получилось добавить сервер')
 
 
 # @app.post('/servers')
@@ -60,7 +60,7 @@ def check_connection(server_id: int, db: Session = Depends(get_db)):
     db_server = result.scalar_one_or_none()
 
     if db_server is None:
-        return HTTPException(status_code=404, detail="Сервер не найден")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
 
     client = SSHClient()
     client.set_missing_host_key_policy(AutoAddPolicy())
@@ -90,13 +90,13 @@ def check_connection(server_id: int, db: Session = Depends(get_db)):
     )
 
 
-@app.get('/servers/{server_id}/status')
+@app.get('/servers/{server_id}')
 def get_status(server_id: int, db: Session = Depends(get_db)):
     client = SSHClient()
     client.set_missing_host_key_policy(AutoAddPolicy())
     db_server = db.execute(select(Server).where(Server.id == server_id)).scalar_one_or_none()
     if db_server is None:
-        return HTTPException(status_code=404, detail="Сервер не найден")
+        raise HTTPException(status_code=404, detail="Сервер не найден")
 
     metrics = {}
     logs = []
@@ -154,11 +154,44 @@ def get_status(server_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Не удалось получить информацию: {str(e)}")
 
 
+@app.patch('/servers/{server_id}')
+def update_server(server_id: int, data: ServerUpdate, db: Session = Depends(get_db)):
+    update_data = data.model_dump(exclude_none=True)  # Преобразование pydantic в dict
+    server = db.execute(select(Server).where(Server.id == server_id)).scalar_one_or_none()
+    if server is None:
+        raise HTTPException(status_code=404, detail="Сервер не найден")
+    for field in update_data:
+        if field != 'password':
+            setattr(server, field, update_data[field])
+    try:
+        db.add(server)
+        db.commit()
+        return {"update_server": server}
+    except:
+        db.rollback()
+        raise HTTPException(status_code=500, detail='Не удалось обновить информацию о сервере')
+
+
+@app.delete('/servers/{server_id}')
+def delete_server(server_id: int, db: Session = Depends(get_db)):
+    server = db.execute(select(Server).where(Server.id == server_id)).scalar_one_or_none()
+    if server is None:
+        raise HTTPException(status_code=404, detail="Сервер не найден")
+    try:
+        name = server.name
+        db.delete(server)
+        db.commit()
+        return {"message": f"Сервер {name} успешно удален"}
+    except:
+        db.rollback()
+        raise HTTPException(status_code=500, detail='Не удалось удалить сервер')
+
+
 @app.post('/register')
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.execute(select(User).where(User.email == user_data.email)).scalar_one_or_none()
     if existing_user:
-        return HTTPException(status_code=401, detail="Пользователь с таким email уже существует")
+        raise HTTPException(status_code=401, detail="Пользователь с таким email уже существует")
 
     hashed_password = get_password_hash(user_data.password)
     try:

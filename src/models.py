@@ -18,8 +18,8 @@ class Server(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     user_id: Mapped[str] = mapped_column(ForeignKey('users.id'))
 
-    metrics = relationship('ServerMetric', back_populates='server')
-    logs = relationship('ServerLog', back_populates='server')
+    metrics = relationship('ServerMetric', back_populates='server', cascade='all, delete')
+    logs = relationship('ServerLog', back_populates='server', cascade='all, delete')
     user = relationship('User', back_populates='servers')
 
     def __repr__(self):
